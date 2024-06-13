@@ -140,7 +140,9 @@ class HomeModel extends BaseModel {
             );
             outputs.add(out);
             prompt ??= out.output;
-            output = out.output;
+            if (prompt != null) {
+              output = out.output;
+            }
             notifyListeners();
           } catch (e) {
             return;
