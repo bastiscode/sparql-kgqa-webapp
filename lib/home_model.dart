@@ -75,8 +75,8 @@ class HomeModel extends BaseModel {
 
     final prefs = await SharedPreferences.getInstance();
     model = prefs.getString("model");
-    sampling = prefs.getBool("sampling") ?? true;
-    beamWidth = prefs.getInt("beamWidth") ?? 1;
+    sampling = prefs.getBool("sampling") ?? false;
+    beamWidth = prefs.getInt("beamWidth") ?? 10;
     if (!validModel) {
       model = modelInfos.firstOrNull?.name;
     }
