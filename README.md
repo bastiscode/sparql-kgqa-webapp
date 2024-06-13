@@ -1,8 +1,8 @@
-# LLM text generation webapp
+# SPARQL KGQA webapp
 
-Web application for LLM text generation backends.
+Web application for SPARQL generation backends.
 Supports the following tasks:
-- text generation
+- SPARQL generation
 
 ## Build
 
@@ -19,7 +19,7 @@ Endpoints required for all question answering backends:
 ```
   returns:
     {
-      "task": "text generation", 
+      "task": "SPARQL generation", 
       "models": [
         {
           "name": "best_model_v1", 
@@ -45,31 +45,28 @@ e.g. /api/v1/llm/info
 
 In particular, for this webapp, the tasks should be run with the
 following base URLs:
-- Text generation: /api
+- SPARQL generation: /api
 
-Endpoints required for text generation:
-- [POST] /generation
+Endpoints required for SPARQL generation:
+- [Websocket] /generate
 ```
   requires:
     {
       "model": "best_model_v1", 
-      "texts": ["who is albert einstein?", "how old is angela merkel?"]
+      "text": "who is albert einstein?"
     }
   optional:
     {
-      "search_strategy": "greedy",
+      "info": "some additional guidance",
+      "sampling_strategy": "greedy",
       "beam_width": 5,
-      "labels": false,
-      "regex": "[0-9]+",
-      "cfg": {
-        "grammar": "...",
-        "lexer": "...",
-        "exact": false
-      }
+      "top_k": 10,
+      "top_p": 0.95,
+      "temperature": 1.0,
     }
-  returns:
+  returns stream of:
     {
-      "text": ["Albert Einstein is a physicist", "Angela Merkel is 65 years old"], 
+      "output": "SELECT ...",
       "runtime": {"s": 10, "b": 20}
     } 
 ```
