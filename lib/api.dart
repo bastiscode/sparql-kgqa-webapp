@@ -2,13 +2,25 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:convert';
 
 import 'package:webapp/components/message.dart';
 import 'package:webapp/config.dart';
 import 'package:webapp/home_model.dart';
 import 'package:window_location_href/window_location_href.dart' as whref;
+
+class SocketStream {
+  final _socketResponse = StreamController<String>();
+
+  void add(String data) => _socketResponse.sink.add(data);
+
+  Stream<String> get stream => _socketResponse.stream;
+
+  void dispose() {
+    _socketResponse.close();
+  }
+}
 
 class ApiResult<T> {
   int statusCode;
@@ -58,19 +70,18 @@ class Runtime {
 
 class ModelOutput {
   String output;
-  OutputType outputType;
   Runtime runtime;
 
   ModelOutput(
     this.output,
-    this.outputType,
     this.runtime,
   );
 }
 
 class Api {
   late final String _baseURL;
-  late final String _wsBaseURL;
+
+  late final String _socketURL;
   late final String _webBaseURL;
 
   String get webBaseURL => _webBaseURL;
@@ -89,11 +100,11 @@ class Api {
         // for release mode use href
         _baseURL = "$href/$rel";
         final uri = Uri.parse(_baseURL);
-        _wsBaseURL = "wss://${uri.host}:${uri.port}/$rel";
+        _socketURL = "${uri.scheme}://${uri.host}:${uri.port}";
       } else {
         // for local development use localhost
         _baseURL = "http://localhost:40000/$rel";
-        _wsBaseURL = "ws://localhost:40000/$rel";
+        _socketURL = "http://localhost:40000";
       }
       _webBaseURL = href;
     } else {
@@ -156,13 +167,13 @@ class Api {
     }
   }
 
-  Future<WebSocketChannel?> generate(
+  (SocketStream, IO.Socket)? generate(
     String text,
     String? info,
     String model,
     int beamWidth,
     bool sampling,
-  ) async {
+  ) {
     var data = {
       "model": model,
       "text": text,
@@ -173,10 +184,25 @@ class Api {
       "top_p": 0.90
     };
     try {
-      final channel = WebSocketChannel.connect(Uri.parse("$_wsBaseURL/live"));
-      await channel.ready;
-      channel.sink.add(jsonEncode(data));
-      return channel;
+      final socket = IO.io(
+        _socketURL,
+        IO.OptionBuilder()
+            .disableAutoConnect()
+            .setReconnectionAttempts(0)
+            .setTransports(["websocket"]).build(),
+      );
+      final stream = SocketStream();
+      socket.onConnect((_) {
+        socket.emit("message", jsonEncode(data));
+      });
+      socket.on("message", (data) {
+        stream.add(data);
+      });
+      socket.onDisconnect((_) {
+        stream.dispose();
+      });
+      socket.connect();
+      return (stream, socket);
     } catch (e) {
       return null;
     }

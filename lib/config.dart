@@ -9,7 +9,7 @@ const String description =
 const String lastUpdated = "June 13, 2024";
 
 const String baseURL = "/api";
-const bool enableGuidance = false;
+const bool enableGuidance = true;
 
 // display links to additional resources on the website,
 // will be shown as action chips below the title bar
@@ -36,7 +36,7 @@ const Map<String, List<String>> examples = {
   "Wikidata Simple": [
     "What jobs did Angela Merkel have?",
     "Who was Britney Spears married to?",
-    "Name the siblings of the the god Jupiter",
+    "Name the siblings of the god Jupiter",
     "How heavy is the Earth?"
   ],
 };
