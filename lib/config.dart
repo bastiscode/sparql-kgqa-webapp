@@ -8,7 +8,7 @@ const String description =
     "Answer questions over knowledge graphs with large language models";
 const String lastUpdated = "June 13, 2024";
 
-const String baseURL = "/api";
+const String apiURL = "/api";
 const bool enableGuidance = true;
 
 // display links to additional resources on the website,

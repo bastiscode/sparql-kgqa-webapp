@@ -7,7 +7,6 @@ import 'dart:convert';
 
 import 'package:webapp/components/message.dart';
 import 'package:webapp/config.dart';
-import 'package:webapp/home_model.dart';
 import 'package:window_location_href/window_location_href.dart' as whref;
 
 class SocketStream {
@@ -79,9 +78,8 @@ class ModelOutput {
 }
 
 class Api {
-  late final String _baseURL;
+  late final String _apiBaseURL;
 
-  late final String _socketURL;
   late final String _webBaseURL;
 
   String get webBaseURL => _webBaseURL;
@@ -92,19 +90,12 @@ class Api {
       if (href.endsWith("/")) {
         href = href.substring(0, href.length - 1);
       }
-      String rel = baseURL;
-      if (rel.startsWith("/")) {
-        rel = rel.substring(1);
-      }
       if (kReleaseMode) {
         // for release mode use href
-        _baseURL = "$href/$rel";
-        final uri = Uri.parse(_baseURL);
-        _socketURL = "${uri.scheme}://${uri.host}:${uri.port}";
+        _apiBaseURL = "$href$apiURL";
       } else {
         // for local development use localhost
-        _baseURL = "http://localhost:40000/$rel";
-        _socketURL = "http://localhost:40000";
+        _apiBaseURL = "http://localhost:40000";
       }
       _webBaseURL = href;
     } else {
@@ -120,7 +111,7 @@ class Api {
 
   Future<ApiResult<List<ModelInfo>>> models() async {
     try {
-      final res = await http.get(Uri.parse("$_baseURL/models"));
+      final res = await http.get(Uri.parse("$_apiBaseURL/models"));
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
@@ -146,7 +137,7 @@ class Api {
 
   Future<ApiResult<BackendInfo>> info() async {
     try {
-      final res = await http.get(Uri.parse("$_baseURL/info"));
+      final res = await http.get(Uri.parse("$_apiBaseURL/info"));
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
@@ -185,9 +176,10 @@ class Api {
     };
     try {
       final socket = IO.io(
-        _socketURL,
+        _apiBaseURL,
         IO.OptionBuilder()
             .disableAutoConnect()
+            .setPath("/live")
             .setReconnectionAttempts(0)
             .setTransports(["websocket"]).build(),
       );
