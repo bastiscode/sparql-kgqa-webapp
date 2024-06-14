@@ -78,7 +78,9 @@ class ModelOutput {
 }
 
 class Api {
-  late final String _apiBaseURL;
+  late final String _apiURL;
+  late final String _socketURL;
+  late final String _socketPath;
 
   late final String _webBaseURL;
 
@@ -92,10 +94,14 @@ class Api {
       }
       if (kReleaseMode) {
         // for release mode use href
-        _apiBaseURL = "$href$apiURL";
+        _apiURL = "$href$apiURL";
+        _socketURL = href;
+        _socketPath = "$apiURL/live";
       } else {
         // for local development use localhost
-        _apiBaseURL = "http://localhost:40000";
+        _apiURL = "http://localhost:40000";
+        _socketURL = _apiURL;
+        _socketPath = "/live";
       }
       _webBaseURL = href;
     } else {
@@ -111,7 +117,7 @@ class Api {
 
   Future<ApiResult<List<ModelInfo>>> models() async {
     try {
-      final res = await http.get(Uri.parse("$_apiBaseURL/models"));
+      final res = await http.get(Uri.parse("$_apiURL/models"));
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
@@ -137,7 +143,7 @@ class Api {
 
   Future<ApiResult<BackendInfo>> info() async {
     try {
-      final res = await http.get(Uri.parse("$_apiBaseURL/info"));
+      final res = await http.get(Uri.parse("$_apiURL/info"));
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
@@ -176,10 +182,10 @@ class Api {
     };
     try {
       final socket = IO.io(
-        _apiBaseURL,
+        _socketURL,
         IO.OptionBuilder()
             .disableAutoConnect()
-            .setPath("/live")
+            .setPath(_socketPath)
             .setReconnectionAttempts(0)
             .setTransports(["websocket"]).build(),
       );
