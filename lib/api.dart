@@ -88,25 +88,24 @@ class Api {
 
   Api._privateConstructor() {
     String? href = whref.href;
-    if (href != null) {
-      if (href.endsWith("/")) {
-        href = href.substring(0, href.length - 1);
-      }
-      if (kReleaseMode) {
-        // for release mode use href
-        _apiURL = "$href$apiURL";
-        _socketURL = href;
-        _socketPath = "$apiURL/live";
-      } else {
-        // for local development use localhost
-        _apiURL = "http://localhost:40000";
-        _socketURL = _apiURL;
-        _socketPath = "/live";
-      }
-      _webBaseURL = href;
-    } else {
+    if (href == null) {
       throw UnsupportedError("unknown platform");
     }
+    if (href.endsWith("/")) {
+      href = href.substring(0, href.length - 1);
+    }
+    if (kReleaseMode) {
+      // for release mode use href
+      _apiURL = "$href$apiURL";
+      _socketURL = href;
+      _socketPath = "$apiURL/live";
+    } else {
+      // for local development use localhost
+      _apiURL = "http://localhost:40000";
+      _socketURL = _apiURL;
+      _socketPath = "/live";
+    }
+    _webBaseURL = href;
   }
 
   static final Api _instance = Api._privateConstructor();
