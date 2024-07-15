@@ -85,44 +85,39 @@ class _HomeViewState extends State<HomeView> {
               ),
             ),
           );
-        } else if (model.ready && !model.available) {
-          return wrapScaffold(
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Could not find any models, "
-                    "please check your backends and reload.",
-                  ),
-                  const SizedBox(
-                    height: 8,
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      await model.init(
-                        inputController,
-                      );
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text("Reload"),
-                  )
-                ],
-              ),
-            ),
-          );
         }
         return SafeArea(
           child: Scaffold(
             body: wrapPadding(
               Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   buildHeading(model),
                   const SizedBox(height: 8),
-                  Expanded(child: buildOutputs(model)),
-                  const SizedBox(height: 8),
-                  buildInput(model)
+                  if (model.ready && !model.available) ...[
+                    const Spacer(),
+                    const Text(
+                      "Could not find any models, "
+                      "please check your backends and reload.",
+                    ),
+                    const SizedBox(
+                      height: 8,
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await model.init(
+                          inputController,
+                        );
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Reload"),
+                    ),
+                    const Spacer()
+                  ] else ...[
+                    Expanded(child: buildOutputs(model)),
+                    const SizedBox(height: 8),
+                    buildInput(model)
+                  ]
                 ],
               ),
             ),
