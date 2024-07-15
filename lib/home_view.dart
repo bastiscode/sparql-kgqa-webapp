@@ -33,7 +33,6 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   final TextEditingController inputController = TextEditingController();
-  final TextEditingController guidanceController = TextEditingController();
   final ScrollController scrollController = ScrollController();
   final FocusNode inputFocus = FocusNode();
 
@@ -49,7 +48,6 @@ class _HomeViewState extends State<HomeView> {
   @override
   void dispose() {
     inputController.dispose();
-    guidanceController.dispose();
     scrollController.dispose();
     inputFocus.dispose();
     super.dispose();
@@ -67,7 +65,6 @@ class _HomeViewState extends State<HomeView> {
       onModelReady: (model) async {
         await model.init(
           inputController,
-          guidanceController,
         );
       },
       builder: (context, model, child) {
@@ -105,7 +102,6 @@ class _HomeViewState extends State<HomeView> {
                     onPressed: () async {
                       await model.init(
                         inputController,
-                        guidanceController,
                       );
                     },
                     icon: const Icon(Icons.refresh),
@@ -219,20 +215,6 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  Widget guidanceTextField(HomeModel model) {
-    return TextField(
-      controller: model.guidanceController,
-      readOnly: model.generating,
-      minLines: 1,
-      maxLines: 3,
-      keyboardType: TextInputType.multiline,
-      decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          hintText:
-              "Provide some guidance like \"avoid using the SERVICE keyword\""),
-    );
-  }
-
   Widget inputTextField(HomeModel model) {
     final canRun = model.validModel &&
         !model.generating &&
@@ -314,16 +296,7 @@ class _HomeViewState extends State<HomeView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: inputTextField(model)),
-                if (enableGuidance) ...[
-                const SizedBox(width: 8),
-                Expanded(child: guidanceTextField(model)),
-                ]
-              ],
-            ),
+            inputTextField(model),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

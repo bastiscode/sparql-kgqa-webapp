@@ -165,7 +165,6 @@ class Api {
 
   (SocketStream, IO.Socket)? generate(
     String text,
-    String? info,
     String model,
     int beamWidth,
     bool sampling,
@@ -173,11 +172,10 @@ class Api {
     var data = {
       "model": model,
       "text": text,
-      "info": info,
       "sampling_strategy": sampling ? "top_p" : "greedy",
       "beam_width": beamWidth,
       "top_k": 100,
-      "top_p": 0.90
+      "top_p": 0.95
     };
     try {
       final socket = IO.io(

@@ -28,7 +28,6 @@ class HomeModel extends BaseModel {
   Queue<Message> messages = Queue();
 
   late TextEditingController inputController;
-  late TextEditingController guidanceController;
 
   bool get validModel =>
       model != null &&
@@ -60,10 +59,8 @@ class HomeModel extends BaseModel {
 
   Future<void> init(
     TextEditingController inputController,
-    TextEditingController guidanceController,
   ) async {
     this.inputController = inputController;
-    this.guidanceController = guidanceController;
 
     final modelRes = await A.api.models();
     if (modelRes.value != null) {
@@ -115,7 +112,6 @@ class HomeModel extends BaseModel {
 
     final result = A.api.generate(
       inputString,
-      guidanceController.text,
       model!,
       beamWidth,
       sampling,
