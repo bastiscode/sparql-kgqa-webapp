@@ -529,6 +529,8 @@ class _HomeViewState extends State<HomeView> {
                     model.notifyListeners();
                   }
                 : null,
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
           ),
           Text("${model.outputIndex + 1} / ${outputs.length}"),
           IconButton(
@@ -539,6 +541,8 @@ class _HomeViewState extends State<HomeView> {
                     model.notifyListeners();
                   }
                 : null,
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 4),
         ],
