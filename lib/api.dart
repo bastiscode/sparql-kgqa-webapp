@@ -68,7 +68,7 @@ class Runtime {
 }
 
 class ModelOutput {
-  String output;
+  List<String> output;
   Runtime runtime;
 
   ModelOutput(

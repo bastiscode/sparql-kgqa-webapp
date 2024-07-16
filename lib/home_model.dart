@@ -21,8 +21,9 @@ class HomeModel extends BaseModel {
 
   String? input;
   String? prompt;
-  String? output;
-  String? sparql;
+  List<String>? output;
+  List<String>? sparql;
+  int outputIndex = 0;
   List<A.ModelOutput> outputs = [];
 
   Queue<Message> messages = Queue();
@@ -55,7 +56,7 @@ class HomeModel extends BaseModel {
 
   bool sampling = false;
 
-  int beamWidth = 10;
+  int beamWidth = 5;
 
   Future<void> init(
     TextEditingController inputController,
@@ -75,7 +76,7 @@ class HomeModel extends BaseModel {
     final prefs = await SharedPreferences.getInstance();
     model = prefs.getString("model");
     sampling = prefs.getBool("sampling") ?? false;
-    beamWidth = prefs.getInt("beamWidth") ?? 10;
+    beamWidth = prefs.getInt("beamWidth") ?? 5;
     if (!validModel) {
       model = modelInfos.firstOrNull?.name;
     }
@@ -106,6 +107,7 @@ class HomeModel extends BaseModel {
     prompt = null;
     output = null;
     sparql = null;
+    outputIndex = 0;
     inputController.clear();
     outputs.clear();
     notifyListeners();
@@ -131,8 +133,10 @@ class HomeModel extends BaseModel {
               await stop();
               return;
             }
+            final generations =
+                (json["output"] as List).map((item) => item as String).toList();
             final out = A.ModelOutput(
-              json["output"],
+              generations,
               A.Runtime.fromJson(
                 json["runtime"],
                 time.elapsed.inMilliseconds / 1000,
@@ -140,7 +144,7 @@ class HomeModel extends BaseModel {
             );
             outputs.add(out);
             if (prompt == null) {
-              prompt = out.output;
+              prompt = out.output.firstOrNull;
             } else {
               output = out.output;
             }

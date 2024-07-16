@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:collection/collection.dart';
 
 import 'package:flutter/material.dart';
@@ -317,6 +319,7 @@ class _HomeViewState extends State<HomeView> {
                                 model.prompt = null;
                                 model.output = null;
                                 model.sparql = null;
+                                model.outputIndex = 0;
                                 model.outputs.clear();
                                 model.notifyListeners();
                               }
@@ -477,25 +480,30 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  Widget outputCard(String text, OutputType type) {
-    IconData icon;
+  IconData outputTypeToIcon(OutputType type) {
     switch (type) {
       case OutputType.user:
-        icon = Icons.person;
-        break;
+        return Icons.person;
       case OutputType.prompt:
-        icon = Icons.text_snippet_outlined;
-        break;
+        return Icons.text_snippet_outlined;
       case OutputType.model:
-        icon = Icons.computer;
-        break;
+        return Icons.computer;
       case OutputType.sparql:
-        icon = Icons.query_stats;
+        return Icons.query_stats;
     }
+  }
+
+  Widget cyclingOutputCard(
+    List<String> outputs,
+    OutputType type,
+    HomeModel model,
+  ) {
+    final valid = model.outputIndex < outputs.length;
+    final text = valid ? outputs[model.outputIndex] : "";
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 18),
+        Icon(outputTypeToIcon(type), size: 18),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -512,31 +520,85 @@ class _HomeViewState extends State<HomeView> {
           ),
         ),
         const SizedBox(width: 4),
-        if (type == OutputType.sparql) ...[
+        if (!model.generating && valid && outputs.length > 1) ...[
           IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: () async {
-              final sparqlEnc = Uri.encodeQueryComponent(text);
-              await launchOrMessage(
-                "https://qlever.cs.uni-freiburg.de/"
-                "wikidata/?query=$sparqlEnc",
-              )();
-            },
-            tooltip: "Open in QLever",
-            iconSize: 18,
-            icon: const Icon(Icons.open_in_new),
+            icon: const Icon(Icons.chevron_left),
+            onPressed: model.outputIndex > 0
+                ? () {
+                    model.outputIndex -= 1;
+                    model.notifyListeners();
+                  }
+                : null,
+          ),
+          Text("${model.outputIndex + 1} / ${outputs.length}"),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: model.outputIndex < outputs.length - 1
+                ? () {
+                    model.outputIndex += 1;
+                    model.notifyListeners();
+                  }
+                : null,
           ),
           const SizedBox(width: 4),
         ],
+        ...outputButtons(text, type)
+      ],
+    );
+  }
+
+  List<Widget> outputButtons(String text, OutputType type) {
+    return [
+      if (type == OutputType.sparql) ...[
         IconButton(
           visualDensity: VisualDensity.compact,
           onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: text));
+            final sparqlEnc = Uri.encodeQueryComponent(text);
+            await launchOrMessage(
+              "https://qlever.cs.uni-freiburg.de/"
+              "wikidata/?query=$sparqlEnc",
+            )();
           },
-          tooltip: "Copy to clipboard",
+          tooltip: "Open in QLever",
           iconSize: 18,
-          icon: const Icon(Icons.copy),
+          icon: const Icon(Icons.open_in_new),
         ),
+        const SizedBox(width: 4),
+      ],
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: text));
+        },
+        tooltip: "Copy to clipboard",
+        iconSize: 18,
+        icon: const Icon(Icons.copy),
+      ),
+    ];
+  }
+
+  Widget outputCard(String text, OutputType type) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(outputTypeToIcon(type), size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+            margin: EdgeInsets.zero,
+            child: wrapPadding(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [SelectableText(text.trim())],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        ...outputButtons(text, type)
       ],
     );
   }
@@ -557,9 +619,17 @@ class _HomeViewState extends State<HomeView> {
         } else if (index == 1) {
           return outputCard(model.prompt!, OutputType.prompt);
         } else if (index == 2) {
-          return outputCard(model.output!, OutputType.model);
+          return cyclingOutputCard(
+            model.output!,
+            OutputType.model,
+            model,
+          );
         } else {
-          return outputCard(model.sparql!, OutputType.sparql);
+          return cyclingOutputCard(
+            model.sparql!,
+            OutputType.sparql,
+            model,
+          );
         }
       },
       itemCount: count,
