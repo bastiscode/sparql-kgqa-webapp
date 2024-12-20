@@ -113,7 +113,8 @@ class HomeModel extends BaseModel {
           "sample": sampling,
           "min_p": 0.05,
           "max_outputs": 3,
-          "disable_sparql_validation": false
+          "disable_sparql_validation": false,
+          "max_new_tokens": 256
         }
       });
       _channel!.sink.add(data);
