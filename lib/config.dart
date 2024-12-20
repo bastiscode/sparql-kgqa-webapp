@@ -20,13 +20,23 @@ const List<Link> links = [
     icon: FontAwesomeIcons.github,
   ),
   Link(
-    "Wikidata indices",
-    "https://github.com/bastiscode/wikidata-natural-language-index",
+    "Webapp",
+    "https://github.com/bastiscode/sparql-kgqa-webapp",
     icon: FontAwesomeIcons.github,
   ),
   Link(
-    "Webapp",
-    "https://github.com/bastiscode/sparql-kgqa-webapp",
+    "Search indices",
+    "https://github.com/bastiscode/search-index",
+    icon: FontAwesomeIcons.github,
+  ),
+  Link(
+    "Text utilities",
+    "https://github.com/ad-freiburg/text-utils",
+    icon: FontAwesomeIcons.github,
+  ),
+  Link(
+    "Grammar utilities",
+    "https://github.com/bastiscode/grammar-utils",
     icon: FontAwesomeIcons.github,
   ),
 ];

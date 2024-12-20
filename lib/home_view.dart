@@ -1,7 +1,4 @@
-import 'dart:math';
-
 import 'package:collection/collection.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,7 +10,6 @@ import 'package:webapp/components/message.dart';
 import 'package:webapp/components/presets.dart';
 import 'package:webapp/config.dart';
 import 'package:webapp/home_model.dart';
-import 'package:webapp/utils.dart';
 
 Widget wrapScaffold(Widget widget) {
   return SafeArea(child: Scaffold(body: widget));
@@ -263,9 +259,7 @@ class _HomeViewState extends State<HomeView> {
           border: const OutlineInputBorder(),
           hintText: "Enter your question",
           helperText: model.validModel
-              ? model.hasResults
-                  ? "${formatRuntime(model.outputs.last.runtime)} with ${model.model!}"
-                  : "Running ${model.model!}"
+              ? "Running ${model.models![model.model]!.name}"
               : "No model selected",
           helperMaxLines: 2,
           suffixIcon: model.inputController.text.contains("\n")
@@ -315,10 +309,9 @@ class _HomeViewState extends State<HomeView> {
                       IconButton(
                         onPressed: !model.generating
                             ? () async {
+                                model.inputController.text = "";
                                 model.input = null;
-                                model.prompt = null;
-                                model.output = null;
-                                model.sparql = null;
+                                model.current = null;
                                 model.outputIndex = 0;
                                 model.outputs.clear();
                                 model.notifyListeners();
@@ -396,9 +389,7 @@ class _HomeViewState extends State<HomeView> {
           builder: (_, setModalState) {
             String? infoText;
             if (model.validModel) {
-              final info = model.modelInfos.firstWhere(
-                (info) => info.name == model.model,
-              );
+              final info = model.models![model.model]!;
               infoText = info.description;
               if (info.tags.isNotEmpty) {
                 infoText += " (${info.tags.join(', ')})";
@@ -456,11 +447,11 @@ class _HomeViewState extends State<HomeView> {
                       helperText: infoText,
                     ),
                     icon: const Icon(Icons.arrow_drop_down_rounded),
-                    items: model.modelInfos.map<DropdownMenuItem<String>>(
-                      (modelInfo) {
+                    items: model.models!.entries.map<DropdownMenuItem<String>>(
+                      (entry) {
                         return DropdownMenuItem(
-                          value: modelInfo.name,
-                          child: Text(modelInfo.name),
+                          value: entry.key,
+                          child: Text(entry.value.name),
                         );
                       },
                     ).toList(),
@@ -484,26 +475,47 @@ class _HomeViewState extends State<HomeView> {
     switch (type) {
       case OutputType.user:
         return Icons.person;
-      case OutputType.prompt:
-        return Icons.text_snippet_outlined;
       case OutputType.model:
         return Icons.computer;
-      case OutputType.sparql:
-        return Icons.query_stats;
     }
   }
 
-  Widget cyclingOutputCard(
-    List<String> outputs,
-    OutputType type,
-    HomeModel model,
-  ) {
-    final valid = model.outputIndex < outputs.length;
-    final text = valid ? outputs[model.outputIndex] : "";
+  Widget cyclingOutputCard(HomeModel model) {
+    String text = "No SPARQL queries generated.";
+    String? sparql;
+    if (model.outputs.isNotEmpty) {
+      final output = model.outputs[model.outputIndex];
+      String? entities;
+      if (output["objects"].containsKey("entity")) {
+        entities = output["objects"]["entity"].map((item) {
+          final identifier = item["identifier"] as String;
+          final label = item["label"] as String;
+          return "$identifier: $label";
+        }).join("\n");
+      }
+      String? properties;
+      if (output["objects"].containsKey("property")) {
+        properties = output["objects"]["property"].map((item) {
+          final identifier = item["identifier"] as String;
+          final label = item["label"] as String;
+          return "$identifier: $label";
+        }).join("\n");
+      }
+      text = """\
+${output["sparql"] as String}
+
+${entities != null ? "Using entities:\n$entities" : "Using no entities"}
+
+${properties != null ? "Using properties:\n$properties" : "Using no properties"}
+
+Score: ${(output["log_p"] as double).toStringAsFixed(4)} | Time: ${(output["elapsed"] as double).toStringAsFixed(2)}s | Execution result:
+${output["result"] as String}""";
+      sparql = output["sparql"] as String;
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(outputTypeToIcon(type), size: 18),
+        Icon(outputTypeToIcon(OutputType.model), size: 18),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -514,13 +526,13 @@ class _HomeViewState extends State<HomeView> {
             child: wrapPadding(
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [SelectableText(text.trim())],
+                children: [SelectableText(text)],
               ),
             ),
           ),
         ),
         const SizedBox(width: 4),
-        if (!model.generating && valid && outputs.length > 1) ...[
+        if (model.outputs.length > 1) ...[
           IconButton(
             icon: const Icon(Icons.chevron_left),
             onPressed: model.outputIndex > 0
@@ -532,10 +544,10 @@ class _HomeViewState extends State<HomeView> {
             iconSize: 18,
             visualDensity: VisualDensity.compact,
           ),
-          Text("${model.outputIndex + 1} / ${outputs.length}"),
+          Text("${model.outputIndex + 1} / ${model.outputs.length}"),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: model.outputIndex < outputs.length - 1
+            onPressed: model.outputIndex < model.outputs.length - 1
                 ? () {
                     model.outputIndex += 1;
                     model.notifyListeners();
@@ -546,24 +558,36 @@ class _HomeViewState extends State<HomeView> {
           ),
           const SizedBox(width: 4),
         ],
-        ...outputButtons(text, type)
+        ...cardButtons(text, sparql: sparql)
       ],
     );
   }
 
-  List<Widget> outputButtons(String text, OutputType type) {
+  List<Widget> cardButtons(String text, {String? sparql}) {
     return [
-      if (type == OutputType.sparql) ...[
+      if (sparql != null) ...[
         IconButton(
           visualDensity: VisualDensity.compact,
           onPressed: () async {
-            final sparqlEnc = Uri.encodeQueryComponent(text);
+            final sparqlEnc = Uri.encodeQueryComponent(sparql);
             await launchOrMessage(
               "https://qlever.cs.uni-freiburg.de/"
-              "wikidata/?query=$sparqlEnc",
+              "wikidata/?query=$sparqlEnc&exec=true",
             )();
           },
           tooltip: "Open in QLever",
+          iconSize: 18,
+          icon: const Icon(Icons.open_in_new),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () async {
+            final sparqlEnc =
+                Uri.encodeQueryComponent(sparql).replaceAll("+", "%20");
+            await launchOrMessage("https://query.wikidata.org/#$sparqlEnc")();
+          },
+          tooltip: "Open in Wikidata Query Service",
           iconSize: 18,
           icon: const Icon(Icons.open_in_new),
         ),
@@ -581,11 +605,11 @@ class _HomeViewState extends State<HomeView> {
     ];
   }
 
-  Widget outputCard(String text, OutputType type) {
+  Widget inputCard(String text) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(outputTypeToIcon(type), size: 18),
+        Icon(outputTypeToIcon(OutputType.user), size: 18),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -602,41 +626,104 @@ class _HomeViewState extends State<HomeView> {
           ),
         ),
         const SizedBox(width: 4),
-        ...outputButtons(text, type)
+        ...cardButtons(text)
+      ],
+    );
+  }
+
+  Widget currentCard(dynamic current) {
+    String text = "";
+    switch (current["type"] as String) {
+      case "sparql":
+        text = """\
+SPARQL continuations:
+${current["sparql"].cast<String>().join("\n\n")}""";
+        break;
+      case "search":
+        text = """\
+SPARQL prefix:
+${current["prefix"] as String} ...
+
+Search queries:
+${current["search"].cast<String>().join("\n")}
+""";
+      case "select":
+        text = """\
+SPARQL prefix:
+${current["prefix"] as String} ...
+
+Search query:
+${current["search_query"] as String}
+
+Selected items:
+${current["select"].map(
+          (item) {
+            final label = item["label"] as String;
+            final identifier = item["identifier"] as String;
+            var text = "$label ($identifier";
+            final variant = item["variant"] as String?;
+            if (variant != null) {
+              text += ", $variant";
+            }
+            text += ")";
+            return text;
+          },
+        ).join("\n")}
+""";
+      default:
+        break;
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(outputTypeToIcon(OutputType.model), size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+            margin: EdgeInsets.zero,
+            child: wrapPadding(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [SelectableText(text.trim())],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        ...cardButtons(text)
       ],
     );
   }
 
   Widget buildOutputs(HomeModel model) {
-    int count = 0;
-    if (model.input != null) count += 1;
-    if (model.prompt != null) count += 1;
-    if (model.output != null) count += 1;
-    if (model.sparql != null) count += 1;
+    Map<int, String> show = {};
+    if (model.input != null) show[0] = "input";
+    if (model.current != null && model.generating) {
+      show[1] = "current";
+    }
+    if (model.outputs.isNotEmpty ||
+        (model.input != null && !model.generating)) {
+      show[show.length] = "output";
+    }
     return ListView.separated(
       separatorBuilder: (_, __) {
         return const SizedBox(height: 8);
       },
       itemBuilder: (_, index) {
-        if (index == 0) {
-          return outputCard(model.input!, OutputType.user);
-        } else if (index == 1) {
-          return outputCard(model.prompt!, OutputType.prompt);
-        } else if (index == 2) {
-          return cyclingOutputCard(
-            model.output!,
-            OutputType.model,
-            model,
-          );
-        } else {
-          return cyclingOutputCard(
-            model.sparql!,
-            OutputType.sparql,
-            model,
-          );
+        switch (show[index]) {
+          case "input":
+            return inputCard(model.input!);
+          case "current":
+            return currentCard(model.current!);
+          default:
+            return cyclingOutputCard(model);
         }
       },
-      itemCount: count,
+      itemCount: show.length,
     );
   }
 

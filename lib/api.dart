@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
 
 import 'package:webapp/components/message.dart';
@@ -79,8 +79,7 @@ class ModelOutput {
 
 class Api {
   late final String _apiURL;
-  late final String _socketURL;
-  late final String _socketPath;
+  late final String _websocketURL;
 
   late final String _webBaseURL;
 
@@ -89,7 +88,7 @@ class Api {
   Api._privateConstructor() {
     String? href = whref.href;
     if (href == null) {
-      throw UnsupportedError("unknown platform");
+      throw UnsupportedError("Unknown platform");
     }
     if (href.endsWith("/")) {
       href = href.substring(0, href.length - 1);
@@ -97,13 +96,12 @@ class Api {
     if (kReleaseMode) {
       // for release mode use href
       _apiURL = "$href$apiURL";
-      _socketURL = href;
-      _socketPath = "$apiURL/live";
+      final uri = Uri.parse(href);
+      _websocketURL = "wss://${uri.host}:${uri.port}$apiURL/live";
     } else {
       // for local development use localhost
       _apiURL = "http://localhost:40000";
-      _socketURL = _apiURL;
-      _socketPath = "/live";
+      _websocketURL = "ws://localhost:40000/live";
     }
     _webBaseURL = href;
   }
@@ -114,29 +112,28 @@ class Api {
     return _instance;
   }
 
-  Future<ApiResult<List<ModelInfo>>> models() async {
+  Future<ApiResult<Map<String, ModelInfo>>> models() async {
     try {
       final res = await http.get(Uri.parse("$_apiURL/models"));
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
-          message: "error getting models: ${res.body}",
+          message: "Error getting models: ${res.body}",
         );
       }
       final json = jsonDecode(res.body);
-      List<ModelInfo> modelInfos = [];
-      for (final modelInfo in json["models"]) {
-        modelInfos.add(
-          ModelInfo(
-            modelInfo["name"],
-            modelInfo["description"],
-            modelInfo["tags"].cast<String>(),
-          ),
+      Map<String, ModelInfo> modelInfos = {};
+      for (final entry in json["models"].entries) {
+        modelInfos[entry.key] = ModelInfo(
+          entry.value["name"],
+          entry.value["description"],
+          entry.value["tags"].cast<String>(),
         );
       }
       return ApiResult(res.statusCode, value: modelInfos);
     } catch (e) {
-      return ApiResult(500, message: "internal error: $e");
+      debugPrint("Error loading models: $e");
+      return ApiResult(500, message: "Internal error: $e");
     }
   }
 
@@ -146,9 +143,10 @@ class Api {
       if (res.statusCode != 200) {
         return ApiResult(
           res.statusCode,
-          message: "error getting backend info: ${res.body}",
+          message: "Error getting backend info: ${res.body}",
         );
       }
+      debugPrint("Info: ${res.body}");
       final json = jsonDecode(res.body);
       return ApiResult(
         res.statusCode,
@@ -159,45 +157,15 @@ class Api {
         ),
       );
     } catch (e) {
-      return ApiResult(500, message: "internal error: $e");
+      return ApiResult(500, message: "Internal error: $e");
     }
   }
 
-  (SocketStream, IO.Socket)? generate(
-    String text,
-    String model,
-    int beamWidth,
-    bool sampling,
-  ) {
-    var data = {
-      "model": model,
-      "text": text,
-      "sampling_strategy": sampling ? "top_p" : "greedy",
-      "beam_width": beamWidth,
-      "top_k": 100,
-      "top_p": 0.95
-    };
+  Future<WebSocketChannel?> connect() async {
     try {
-      final socket = IO.io(
-        _socketURL,
-        IO.OptionBuilder()
-            .disableAutoConnect()
-            .setPath(_socketPath)
-            .setReconnectionAttempts(0)
-            .setTransports(["websocket"]).build(),
-      );
-      final stream = SocketStream();
-      socket.onConnect((_) {
-        socket.emit("message", jsonEncode(data));
-      });
-      socket.on("message", (data) {
-        stream.add(data);
-      });
-      socket.onDisconnect((_) {
-        stream.dispose();
-      });
-      socket.connect();
-      return (stream, socket);
+      final channel = WebSocketChannel.connect(Uri.parse(_websocketURL));
+      await channel.ready;
+      return channel;
     } catch (e) {
       return null;
     }
