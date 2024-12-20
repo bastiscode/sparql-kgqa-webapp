@@ -112,8 +112,8 @@ class HomeModel extends BaseModel {
           "beam_width": beamWidth,
           "sample": sampling,
           "min_p": 0.05,
-          "max_outputs": null,
-          "disable_sparql_validation": true
+          "max_outputs": 3,
+          "disable_sparql_validation": false
         }
       });
       _channel!.sink.add(data);
@@ -153,7 +153,6 @@ class HomeModel extends BaseModel {
   }
 
   Future<void> stop() async {
-    debugPrint("Stopping generation");
     await _channel?.sink.close(1001);
     await _generation?.cancel();
     _generation = null;

@@ -509,7 +509,19 @@ ${entities != null ? "Using entities:\n$entities" : "Using no entities"}
 ${properties != null ? "Using properties:\n$properties" : "Using no properties"}
 
 Score: ${(output["log_p"] as double).toStringAsFixed(4)} | Time: ${(output["elapsed"] as double).toStringAsFixed(2)}s | Execution result:
-${output["result"] as String}""";
+${output["result"] as String}
+""";
+
+      if (output["validation"] != null) {
+        final val = output["validation"];
+        text += """
+
+Validation (${val["judgement"]["score"] as int}/5):
+${val["judgement"]["explanation"] as String}
+
+Verbalization:
+${val["verbalization"] as String}""";
+      }
       sparql = output["sparql"] as String;
     }
     return Row(

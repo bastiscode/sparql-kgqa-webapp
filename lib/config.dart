@@ -46,6 +46,7 @@ const Map<String, List<String>> examples = {
   "Wikidata Simple": [
     "What jobs did Angela Merkel have?",
     "Who was Britney Spears married to?",
+    "What is spoken in Switzerland?",
     "Name the siblings of the god Jupiter",
     "How heavy is the Earth?"
   ],
