@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webapp/api.dart' as A;
 import 'package:webapp/base_view.dart';
@@ -481,9 +482,12 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Widget cyclingOutputCard(HomeModel model) {
+    List<Widget> children = [];
     String text = "No SPARQL queries generated.";
     String? sparql;
-    if (model.outputs.isNotEmpty) {
+    if (model.outputs.isEmpty) {
+      children.add(const SelectableText("No SPARQL queries generated."));
+    } else {
       final output = model.outputs[model.outputIndex];
       String? entities;
       if (output["objects"].containsKey("entity")) {
@@ -501,27 +505,33 @@ class _HomeViewState extends State<HomeView> {
           return "$identifier: $label";
         }).join("\n");
       }
-      text = """\
+
+      final result = (output["result"] as String).split("\n");
+      children.add(SelectableText(
+        """\
 ${output["sparql"] as String}
 
 ${entities != null ? "Using entities:\n$entities" : "Using no entities"}
 
 ${properties != null ? "Using properties:\n$properties" : "Using no properties"}
 
-Score: ${(output["log_p"] as double).toStringAsFixed(4)} | Time: ${(output["elapsed"] as double).toStringAsFixed(2)}s | Execution result:
-${output["result"] as String}
-""";
+Score: ${(output["score"] as double).toStringAsFixed(4)} | Time: ${(output["elapsed"] as double).toStringAsFixed(2)}s
 
-      if (output["validation"] != null) {
-        final val = output["validation"];
-        text += """
+Result:
+${result.firstOrNull}""",
+      ));
 
-Validation (${val["judgement"]["score"] as int}/5):
-${val["judgement"]["explanation"] as String}
-
-Verbalization:
-${val["verbalization"] as String}""";
+      if (result.length > 1) {
+        children.add(SelectableText(
+          result.sublist(1).join("\n"),
+          style: GoogleFonts.robotoMono(),
+        ));
       }
+
+      if (output["verbalization"] != null) {
+        children.add(SelectableText("\n${output["verbalization"]}"));
+      }
+
       sparql = output["sparql"] as String;
     }
     return Row(
@@ -538,7 +548,7 @@ ${val["verbalization"] as String}""";
             child: wrapPadding(
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [SelectableText(text)],
+                children: children,
               ),
             ),
           ),
@@ -649,7 +659,7 @@ ${val["verbalization"] as String}""";
       case "sparql":
         text = """\
 SPARQL continuations:
-${current["sparql"].cast<String>().join("\n\n")}""";
+${current["sparql"].map((s) => s["sparql"] as String).join("\n\n")}""";
         break;
       case "search":
         text = """\
@@ -657,7 +667,7 @@ SPARQL prefix:
 ${current["prefix"] as String} ...
 
 Search queries:
-${current["search"].cast<String>().join("\n")}
+${current["search"].map((s) => s["query"] as String).join("\n")}
 """;
       case "select":
         text = """\
