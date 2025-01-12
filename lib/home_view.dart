@@ -33,6 +33,7 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   final TextEditingController inputController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final FocusNode focusNode = FocusNode();
   final FocusNode inputFocus = FocusNode();
 
   @override
@@ -62,9 +63,7 @@ class _HomeViewState extends State<HomeView> {
   Widget build(BuildContext homeContext) {
     return BaseView<HomeModel>(
       onModelReady: (model) async {
-        await model.init(
-          inputController,
-        );
+        await model.init(inputController);
       },
       builder: (context, model, child) {
         Future.delayed(
@@ -72,7 +71,7 @@ class _HomeViewState extends State<HomeView> {
           () {
             while (model.messages.isNotEmpty) {
               final message = model.messages.removeFirst();
-              showMessage(context, message);
+              if (context.mounted) showMessage(context, message);
             }
           },
         );
@@ -87,37 +86,52 @@ class _HomeViewState extends State<HomeView> {
         }
         return SafeArea(
           child: Scaffold(
-            body: wrapPadding(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  buildHeading(model),
-                  const SizedBox(height: 8),
-                  if (model.ready && !model.available) ...[
-                    const Spacer(),
-                    const Text(
-                      "Could not find any models, "
-                      "please check your backends and reload.",
-                    ),
-                    const SizedBox(
-                      height: 8,
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        await model.init(
-                          inputController,
-                        );
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text("Reload"),
-                    ),
-                    const Spacer()
-                  ] else ...[
-                    Expanded(child: buildOutputs(model)),
+            body: KeyboardListener(
+              focusNode: focusNode,
+              onKeyEvent: (event) {
+                if (event is! KeyUpEvent) return;
+                final n = model.outputs.length;
+                if (n < 2) return;
+                if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                    model.outputIndex < n - 1) {
+                  model.outputIndex += 1;
+                  model.notifyListeners();
+                } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                    model.outputIndex > 0) {
+                  model.outputIndex -= 1;
+                  model.notifyListeners();
+                }
+              },
+              child: wrapPadding(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    buildHeading(model),
                     const SizedBox(height: 8),
-                    buildInput(model)
-                  ]
-                ],
+                    if (model.ready && !model.available) ...[
+                      const Spacer(),
+                      const Text(
+                        "Could not find any models, "
+                        "please check your backends and reload.",
+                      ),
+                      const SizedBox(
+                        height: 8,
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          await model.init(inputController);
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text("Reload"),
+                      ),
+                      const Spacer()
+                    ] else ...[
+                      Expanded(child: buildOutputs(model)),
+                      const SizedBox(height: 8),
+                      buildInput(model)
+                    ]
+                  ],
+                ),
               ),
             ),
           ),
@@ -139,13 +153,14 @@ class _HomeViewState extends State<HomeView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: links
-                      .map((l) => LinkChip(l, launchOrMessage(l.url)))
-                      .toList(),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: links
+                        .map((l) => LinkChip(l, launchOrMessage(l.url)))
+                        .toList(),
+                  ),
                 ),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -481,6 +496,34 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
+  Widget cyclingButtons(HomeModel model) {
+    return Row(children: [
+      IconButton(
+        icon: const Icon(Icons.chevron_left),
+        onPressed: model.outputIndex > 0
+            ? () {
+                model.outputIndex -= 1;
+                model.notifyListeners();
+              }
+            : null,
+        iconSize: 18,
+        visualDensity: VisualDensity.compact,
+      ),
+      Text("${model.outputIndex + 1} / ${model.outputs.length}"),
+      IconButton(
+        icon: const Icon(Icons.chevron_right),
+        onPressed: model.outputIndex < model.outputs.length - 1
+            ? () {
+                model.outputIndex += 1;
+                model.notifyListeners();
+              }
+            : null,
+        iconSize: 18,
+        visualDensity: VisualDensity.compact,
+      ),
+    ]);
+  }
+
   Widget cyclingOutputCard(HomeModel model) {
     List<Widget> children = [];
     String text = "No SPARQL queries generated.";
@@ -515,8 +558,6 @@ ${entities != null ? "Using entities:\n$entities" : "Using no entities"}
 
 ${properties != null ? "Using properties:\n$properties" : "Using no properties"}
 
-Score: ${(output["score"] as double).toStringAsFixed(4)} | Time: ${(output["elapsed"] as double).toStringAsFixed(2)}s
-
 Result:
 ${result.firstOrNull}""",
       ));
@@ -533,7 +574,19 @@ ${result.firstOrNull}""",
       }
 
       sparql = output["sparql"] as String;
+
+      children.addAll([const SizedBox(height: 8), const Divider()]);
+
+      final time = (output["elapsed"] as double).toStringAsFixed(2);
+      children.add(Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text("${time}s"),
+          if (model.outputs.length > 1) ...[cyclingButtons(model)],
+        ],
+      ));
     }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -554,33 +607,10 @@ ${result.firstOrNull}""",
           ),
         ),
         const SizedBox(width: 4),
-        if (model.outputs.length > 1) ...[
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: model.outputIndex > 0
-                ? () {
-                    model.outputIndex -= 1;
-                    model.notifyListeners();
-                  }
-                : null,
-            iconSize: 18,
-            visualDensity: VisualDensity.compact,
-          ),
-          Text("${model.outputIndex + 1} / ${model.outputs.length}"),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: model.outputIndex < model.outputs.length - 1
-                ? () {
-                    model.outputIndex += 1;
-                    model.notifyListeners();
-                  }
-                : null,
-            iconSize: 18,
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 4),
-        ],
-        ...cardButtons(text, sparql: sparql)
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: cardButtons(text, sparql: sparql),
+        ),
       ],
     );
   }

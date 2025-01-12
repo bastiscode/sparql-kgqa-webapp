@@ -146,7 +146,6 @@ class Api {
           message: "Error getting backend info: ${res.body}",
         );
       }
-      debugPrint("Info: ${res.body}");
       final json = jsonDecode(res.body);
       return ApiResult(
         res.statusCode,

@@ -101,7 +101,7 @@ class HomeModel extends BaseModel {
 
     _channel = await A.api.connect();
     if (_channel == null) {
-      messages.add(Message("failed to connect to backend", Status.error));
+      messages.add(Message("Failed to connect to backend", Status.error));
     } else {
       final data = jsonEncode({
         "model": model!,
@@ -129,9 +129,11 @@ class HomeModel extends BaseModel {
               default:
                 current = json;
             }
+            _channel!.sink.add(jsonEncode({"status": "ok"}));
             notifyListeners();
           } catch (e) {
             debugPrint("Got error: $e");
+            await stop();
             return;
           }
         },
@@ -150,7 +152,7 @@ class HomeModel extends BaseModel {
   }
 
   Future<void> stop() async {
-    await _channel?.sink.close(1000);
+    await _channel?.sink.close();
     await _generation?.cancel();
     _generation = null;
     _channel = null;
