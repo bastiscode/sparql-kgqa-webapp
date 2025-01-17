@@ -9,12 +9,9 @@ import 'package:webapp/colors.dart';
 import 'package:webapp/components/links.dart';
 import 'package:webapp/components/message.dart';
 import 'package:webapp/components/presets.dart';
+import 'package:webapp/components/tree.dart';
 import 'package:webapp/config.dart';
 import 'package:webapp/home_model.dart';
-
-Widget wrapScaffold(Widget widget) {
-  return SafeArea(child: Scaffold(body: widget));
-}
 
 Widget wrapPadding(Widget widget) {
   return Padding(
@@ -76,10 +73,12 @@ class _HomeViewState extends State<HomeView> {
           },
         );
         if (!model.ready) {
-          return wrapScaffold(
-            const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
+          return const SafeArea(
+            child: Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                ),
               ),
             ),
           );
@@ -327,7 +326,8 @@ class _HomeViewState extends State<HomeView> {
                             ? () async {
                                 model.inputController.text = "";
                                 model.input = null;
-                                model.current = null;
+                                model.searchPrefix = null;
+                                model.tree.clear();
                                 model.outputIndex = 0;
                                 model.outputs.clear();
                                 model.notifyListeners();
@@ -590,7 +590,7 @@ ${result.firstOrNull}""",
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(outputTypeToIcon(OutputType.model), size: 18),
+        Icon(outputTypeToIcon(OutputType.model)),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -661,7 +661,7 @@ ${result.firstOrNull}""",
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(outputTypeToIcon(OutputType.user), size: 18),
+        Icon(outputTypeToIcon(OutputType.user)),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -670,9 +670,9 @@ ${result.firstOrNull}""",
             ),
             margin: EdgeInsets.zero,
             child: wrapPadding(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [SelectableText(text.trim())],
+              SelectableText(
+                text.trim(),
+                maxLines: null,
               ),
             ),
           ),
@@ -683,53 +683,11 @@ ${result.firstOrNull}""",
     );
   }
 
-  Widget currentCard(dynamic current) {
-    String text = "";
-    switch (current["type"] as String) {
-      case "sparql":
-        text = """\
-SPARQL continuations:
-${current["sparql"].map((s) => s["sparql"] as String).join("\n\n")}""";
-        break;
-      case "search":
-        text = """\
-SPARQL prefix:
-${current["prefix"] as String} ...
-
-Search queries:
-${current["search"].map((s) => s["query"] as String).join("\n")}
-""";
-      case "select":
-        text = """\
-SPARQL prefix:
-${current["prefix"] as String} ...
-
-Search query:
-${current["search_query"] as String}
-
-Selected items:
-${current["select"].map(
-          (item) {
-            final label = item["label"] as String;
-            final identifier = item["identifier"] as String;
-            var text = "$label ($identifier";
-            final variant = item["variant"] as String?;
-            if (variant != null) {
-              text += ", $variant";
-            }
-            text += ")";
-            return text;
-          },
-        ).join("\n")}
-""";
-      default:
-        break;
-    }
-
+  Widget detailsCard(HomeModel model) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(outputTypeToIcon(OutputType.model), size: 18),
+        Icon(model.generating ? Icons.search : Icons.account_tree_outlined),
         const SizedBox(width: 8),
         Expanded(
           child: Card(
@@ -737,25 +695,78 @@ ${current["select"].map(
               borderRadius: BorderRadius.circular(4),
             ),
             margin: EdgeInsets.zero,
-            child: wrapPadding(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [SelectableText(text.trim())],
-              ),
-            ),
+            child: model.generating
+                ? wrapPadding(Text(
+                    model.searchPrefix!,
+                    style: const TextStyle(overflow: TextOverflow.ellipsis),
+                  ))
+                : NodeView(
+                    node: model.tree,
+                    titleBuilder: (_, node) {
+                      final type = node.data["type"] as String;
+                      switch (type) {
+                        case "root":
+                          return Text(node.data["value"]);
+                        case "sparql" || "search":
+                          return Text(node.data["value"]);
+                        case "select":
+                          return Text(node.data["value"]["label"]);
+                        default:
+                          return Text(node.key);
+                      }
+                    },
+                    subtitleBuilder: (_, node) {
+                      Chip chip(String text) {
+                        return Chip(
+                          label: Text(
+                            text,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.all(4),
+                          labelPadding: EdgeInsets.zero,
+                        );
+                      }
+
+                      final type = node.data["type"] as String;
+                      switch (type) {
+                        case "sparql" || "search" || "select":
+                          final score = node.data["score"] as double;
+                          final chips = [
+                            chip(type),
+                            chip(score.toStringAsFixed(2)),
+                          ];
+                          if (type == "select") {
+                            final data = node.data["value"];
+                            chips.add(chip(data["obj_type"]));
+                            chips.add(chip(data["identifier"]));
+                            if (data["variant"] != null) {
+                              chips.add(chip(data["variant"]));
+                            }
+                          }
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: chips,
+                          );
+                        default:
+                          return null;
+                      }
+                    },
+                  ),
           ),
         ),
-        const SizedBox(width: 4),
-        ...cardButtons(text)
       ],
     );
   }
 
   Widget buildOutputs(HomeModel model) {
     Map<int, String> show = {};
-    if (model.input != null) show[0] = "input";
-    if (model.current != null && model.generating) {
-      show[1] = "current";
+    if (model.input != null) {
+      show[0] = "input";
+    }
+    if (model.searchPrefix != null) {
+      show[show.length] = "details";
     }
     if (model.outputs.isNotEmpty ||
         (model.input != null && !model.generating)) {
@@ -769,8 +780,8 @@ ${current["select"].map(
         switch (show[index]) {
           case "input":
             return inputCard(model.input!);
-          case "current":
-            return currentCard(model.current!);
+          case "details":
+            return detailsCard(model);
           default:
             return cyclingOutputCard(model);
         }

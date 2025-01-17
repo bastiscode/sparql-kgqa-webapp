@@ -10,6 +10,7 @@ import 'package:webapp/api.dart' as A;
 import 'package:webapp/base_model.dart';
 import 'package:webapp/components/message.dart';
 import 'package:webapp/components/presets.dart';
+import 'package:webapp/components/tree.dart';
 
 enum OutputType { user, model }
 
@@ -19,7 +20,9 @@ class HomeModel extends BaseModel {
   String? model;
 
   String? input;
-  dynamic current;
+  String? searchPrefix;
+  Node<dynamic> tree =
+      Node.root(data: {"type": "root", "value": "Search tree"});
 
   int outputIndex = 0;
   List<dynamic> outputs = [];
@@ -93,7 +96,8 @@ class HomeModel extends BaseModel {
   Future<void> run(String inputString) async {
     _waiting = true;
     input = inputString;
-    current = null;
+    searchPrefix = null;
+    tree.clear();
     outputIndex = 0;
     inputController.clear();
     outputs.clear();
@@ -123,12 +127,34 @@ class HomeModel extends BaseModel {
               await stop();
               return;
             }
-            switch (json["type"] as String) {
+            final type = json["type"] as String;
+            switch (type) {
               case "output":
                 outputs = json["output"];
+                break;
+              case "prefix":
+                searchPrefix = json["prefix"] as String;
+                break;
+              case "sparql" || "search" || "select":
+                final node = tree.find(json["path"].cast<String>());
+                if (node != null) {
+                  for (final item in json[type]) {
+                    final child = Node(
+                      item["key"] as String,
+                      {
+                        "type": type,
+                        "score": item["score"],
+                        "value": item["value"]
+                      },
+                    );
+                    node.add(child);
+                  }
+                }
+                break;
               default:
-                current = json;
+                break;
             }
+            // signal success back to server
             _channel!.sink.add(jsonEncode({"status": "ok"}));
             notifyListeners();
           } catch (e) {
