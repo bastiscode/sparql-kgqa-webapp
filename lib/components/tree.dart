@@ -38,13 +38,11 @@ class NodeView<T> extends StatefulWidget {
   final Node<T> node;
   final NodeBuilder titleBuilder;
   final OptionalNodeBuilder? subtitleBuilder;
-  final OptionalNodeBuilder? contentBuilder;
 
   const NodeView({
     required this.node,
     required this.titleBuilder,
     this.subtitleBuilder,
-    this.contentBuilder,
     super.key,
   });
 
@@ -55,19 +53,17 @@ class NodeView<T> extends StatefulWidget {
 class _NodeViewState extends State<NodeView> {
   @override
   Widget build(BuildContext context) {
-    List<Widget> children = [];
-    if (widget.contentBuilder != null) {
-      final content = widget.contentBuilder!(context, widget.node);
-      if (content != null) children.add(content);
+    if (widget.node.children.isEmpty) {
+      return ListTile(
+        title: widget.titleBuilder(context, widget.node),
+        subtitle: widget.subtitleBuilder != null
+            ? widget.subtitleBuilder!(context, widget.node)
+            : null,
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        shape: const Border(),
+      );
     }
-    children.addAll(widget.node.children.indexed.map(
-      (child) => NodeView(
-        node: child.$2,
-        titleBuilder: widget.titleBuilder,
-        subtitleBuilder: widget.subtitleBuilder,
-        contentBuilder: widget.contentBuilder,
-      ),
-    ));
     return ExpansionTile(
       controlAffinity: ListTileControlAffinity.leading,
       visualDensity: VisualDensity.compact,
@@ -79,7 +75,13 @@ class _NodeViewState extends State<NodeView> {
           ? widget.subtitleBuilder!(context, widget.node)
           : null,
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 0, 0),
-      children: children,
+      children: widget.node.children
+          .map((child) => NodeView(
+                node: child,
+                titleBuilder: widget.titleBuilder,
+                subtitleBuilder: widget.subtitleBuilder,
+              ))
+          .toList(),
     );
   }
 }

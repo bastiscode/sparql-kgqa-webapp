@@ -236,7 +236,7 @@ class _HomeViewState extends State<HomeView> {
               }
             : null,
         icon: const Icon(Icons.start),
-        color: uniBlue,
+        color: Theme.of(context).colorScheme.primary,
         tooltip: "Run model",
         splashRadius: 16,
       ),
@@ -247,7 +247,7 @@ class _HomeViewState extends State<HomeView> {
               }
             : null,
         icon: const Icon(Icons.stop_circle),
-        color: uniBlue,
+        color: Theme.of(context).colorScheme.primary,
         tooltip: "Stop generation",
         splashRadius: 16,
       ),
@@ -705,9 +705,7 @@ ${result.firstOrNull}""",
                     titleBuilder: (_, node) {
                       final type = node.data["type"] as String;
                       switch (type) {
-                        case "root":
-                          return Text(node.data["value"]);
-                        case "sparql" || "search":
+                        case "root" || "sparql" || "search":
                           return Text(node.data["value"]);
                         case "select":
                           return Text(node.data["value"]["label"]);
@@ -716,15 +714,25 @@ ${result.firstOrNull}""",
                       }
                     },
                     subtitleBuilder: (_, node) {
-                      Chip chip(String text) {
-                        return Chip(
-                          label: Text(
-                            text,
-                            style: Theme.of(context).textTheme.labelSmall,
+                      Widget chip(String text) {
+                        return Card(
+                          margin: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            side: BorderSide(
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
                           ),
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.all(4),
-                          labelPadding: EdgeInsets.zero,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              text,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ),
                         );
                       }
 
